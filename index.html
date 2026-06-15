@@ -414,37 +414,10 @@ function drawGold(ctx, p, ts){
   const breathe=0.5+0.5*Math.sin(ts*0.0012);
 
   if(strength>0){
-    // ── 底色：橢圓形雙層漸層，無任何硬邊 ──
-    // 用兩個橢圓 radial gradient 疊出「中央不透明、四邊自然消融」
-    // 橫向拉長 → 左右邊也柔化；縱向稍短 → 頂底消融更快
+    // ── 底色：蓋滿全螢幕 ──
     const bg = Math.min(strength * 0.94, 0.94);
-
-    // 層一：大橢圓，覆蓋中央主體
-    const ex1 = fxW * 0.50, ey1 = fxH * 0.42;   // 中心偏上一點
-    const rx1 = fxW * 0.52, ry1 = fxH * 0.48;   // 橢圓半徑
-    ctx.save();
-    ctx.scale(1, ry1/rx1);                         // 縮放 Y 軸讓 radial 變橢圓
-    const g_bg1 = ctx.createRadialGradient(ex1, ey1*(rx1/ry1), 0, ex1, ey1*(rx1/ry1), rx1);
-    g_bg1.addColorStop(0,    `rgba(28,10,62,${bg})`);
-    g_bg1.addColorStop(0.45, `rgba(28,10,62,${bg})`);
-    g_bg1.addColorStop(0.72, `rgba(28,10,62,${bg*0.55})`);
-    g_bg1.addColorStop(0.88, `rgba(28,10,62,${bg*0.18})`);
-    g_bg1.addColorStop(1,    `rgba(28,10,62,0)`);
-    ctx.fillStyle = g_bg1;
-    ctx.fillRect(0, 0, fxW, fxH*(rx1/ry1));
-    ctx.restore();
-
-    // 層二：稍小橢圓補中央，讓核心更實
-    ctx.save();
-    const rx2 = fxW * 0.35, ry2 = fxH * 0.32;
-    ctx.scale(1, ry2/rx2);
-    const g_bg2 = ctx.createRadialGradient(fxW/2, (fxH/2)*(rx2/ry2), 0, fxW/2, (fxH/2)*(rx2/ry2), rx2);
-    g_bg2.addColorStop(0,    `rgba(28,10,62,${bg})`);
-    g_bg2.addColorStop(0.6,  `rgba(28,10,62,${bg*0.4})`);
-    g_bg2.addColorStop(1,    `rgba(28,10,62,0)`);
-    ctx.fillStyle = g_bg2;
-    ctx.fillRect(0, 0, fxW, fxH*(rx2/ry2));
-    ctx.restore();
+    ctx.fillStyle = `rgba(28,10,62,${bg})`;
+    ctx.fillRect(0, 0, fxW, fxH);
 
     // ── 金色光暈從底部三點滲入 ──
     [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([gx,gy],i)=>{
