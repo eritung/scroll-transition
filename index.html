@@ -109,17 +109,17 @@
   }
 
   /*
-   * ③ P1：正常 flow，在 scene-wrap 外面
-   * scene-wrap 滾完後自然出現，不蓋任何東西
+   * ③ P1：提前疊在序言下方
+   * 序言往上滑走時，P1 會直接從下方露出
    */
   .section-p1 {
     position: relative;
     /*
-     * 讓 P1 提早一個螢幕高度進場：
-     * 目前序言退場 outStart = 0.75，會在最後 100vh 開始看到 P1；outEnd = 1.00，退場會一路延續到 P1 接上
+     * 讓 P1 提早兩個螢幕高度進場：
+     * outStart 一開始，P1 就已經在序言底下待命；序言滑走時會直接露出 P1。
      */
-    margin-top: -100vh;
-    min-height: 200vh;
+    margin-top: -200vh;
+    min-height: 300vh;
     background: #3d1f72; /* ▼▼▼ 換成你的 P1 背景色 ▼▼▼ */
     color: rgba(240, 235, 255, 0.85);
     font-size: 18px;
@@ -194,7 +194,7 @@
 
 </div><!-- /scene-wrap -->
 
-<!-- ③ P1（scene-wrap 結束後正常接上，不蓋任何東西） -->
+<!-- ③ P1（提前疊在序言下方，序言滑走時直接露出） -->
 <section class="section-p1">
   <div class="p1-inner">
     <!-- ▼▼▼ 換成你的 P1 內容 ▼▼▼ -->
@@ -270,90 +270,44 @@ function initCanvas(){
   canvas.height = fxH;
   starSeeds = [];
 
-  // 三層星空：數量多但半徑小，亮度有高有低，各自有獨立淡入 delay
-  for(let i=0;i<320;i++) starSeeds.push({
-    x:Math.random()*fxW, y:Math.random()*fxH,
-    r:Math.random()*0.38+0.10,           // 極細，0.10~0.48px
-    a:Math.random()*0.38+0.10,           // 亮度偏低，讓整體不過亮
-    speed:Math.random()*1.6+0.3,
-    phase:Math.random()*Math.PI*2,
-    delay:Math.random(),                  // 各自隨機淡入時序
-    type:'tiny'
-  });
-  for(let i=0;i<90;i++) starSeeds.push({
-    x:Math.random()*fxW, y:Math.random()*fxH,
-    r:Math.random()*0.55+0.32,           // 0.32~0.87px
-    a:Math.random()*0.45+0.22,
-    speed:Math.random()*1.0+0.2,
-    phase:Math.random()*Math.PI*2,
-    delay:Math.random(),
-    type:'mid'
-  });
-  for(let i=0;i<22;i++) starSeeds.push({
-    x:Math.random()*fxW, y:Math.random()*fxH,
-    r:Math.random()*0.80+0.55,           // 0.55~1.35px，亮星就是要少
-    a:Math.random()*0.50+0.38,
-    speed:Math.random()*0.6+0.1,
-    phase:Math.random()*Math.PI*2,
-    delay:Math.random(),
-    type:'bright'
-  });
+  // 星星明顯版：提高數量、亮度與尺寸，但保留細緻星空感。
+  for(let i=0;i<360;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.45+0.16,a:Math.random()*0.55+0.18,speed:Math.random()*1.4+0.4,phase:Math.random()*Math.PI*2,type:'tiny'});
+  for(let i=0;i<110;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.75+0.42,a:Math.random()*0.6+0.28, speed:Math.random()*0.9+0.2,phase:Math.random()*Math.PI*2,type:'mid'});
+  for(let i=0;i<34;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*1.0+0.72, a:Math.random()*0.65+0.42, speed:Math.random()*0.5+0.1,phase:Math.random()*Math.PI*2,type:'bright'});
 }
 
 function drawStarField(ctx, ts, globalAlpha, flickerSpeed, flickerDepth){
-  flickerSpeed = flickerSpeed || 0.0008;
-  flickerDepth = flickerDepth || 0.35;
-
+  flickerSpeed=flickerSpeed||0.0008; flickerDepth=flickerDepth||0.35;
   starSeeds.forEach(s=>{
-    // 各自 delay：globalAlpha 未達到 delay 門檻的星星還不出現
-    // 讓星星像慢慢被點亮，而不是整片同時亮起
-    const localAlpha = clamp((globalAlpha - s.delay * 0.35) / 0.65, 0, 1);
-    if(localAlpha < 0.01) return;
+    const twinkle=(1-flickerDepth)+flickerDepth*(0.5+0.5*Math.sin(ts*flickerSpeed*s.speed+s.phase));
+    const a=Math.min(s.a*twinkle*globalAlpha*1.45,0.95);
+    if(a<0.015) return;
 
-    // 閃爍：用正弦波模擬，每顆 phase 不同所以非同步
-    const twinkle = (1 - flickerDepth) + flickerDepth *
-                    (0.5 + 0.5 * Math.sin(ts * flickerSpeed * s.speed + s.phase));
+    // 先畫柔光，星星會更容易從深色背景裡跳出來。
+    if(s.type!=='tiny'){
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*5.2,0,Math.PI*2);
+      ctx.fillStyle=`rgba(220,210,255,${a*0.12})`; ctx.fill();
+    }
 
-    const a = s.a * twinkle * localAlpha;
-    if(a < 0.012) return;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    if(s.type==='bright'){
+      ctx.fillStyle=`rgba(250,244,255,${a})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*7.0,0,Math.PI*2);
+      ctx.fillStyle=`rgba(205,190,255,${a*0.13})`; ctx.fill();
 
-    if(s.type === 'bright'){
-      // 亮星：小核心 + 兩圈純 radial 柔光暈，不用 stroke
-      // 外圈極淡，看起來像真實星星的散射光
-      const halo1 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*4.5);
-      halo1.addColorStop(0, `rgba(230,222,255,${a*0.22})`);
-      halo1.addColorStop(1, `rgba(200,190,255,0)`);
-      ctx.fillStyle = halo1;
-      ctx.fillRect(s.x-s.r*4.5, s.y-s.r*4.5, s.r*9, s.r*9);
-
-      const halo2 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.2);
-      halo2.addColorStop(0, `rgba(245,240,255,${a*0.40})`);
-      halo2.addColorStop(1, `rgba(220,210,255,0)`);
-      ctx.fillStyle = halo2;
-      ctx.fillRect(s.x-s.r*2.2, s.y-s.r*2.2, s.r*4.4, s.r*4.4);
-
-      // 星點本體
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(252,248,255,${Math.min(a*1.1, 0.92)})`;
-      ctx.fill();
-
-    } else if(s.type === 'mid'){
-      // 中星：一層小柔光 + 本體
-      const halo = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.8);
-      halo.addColorStop(0, `rgba(220,215,255,${a*0.18})`);
-      halo.addColorStop(1, `rgba(210,205,255,0)`);
-      ctx.fillStyle = halo;
-      ctx.fillRect(s.x-s.r*2.8, s.y-s.r*2.8, s.r*5.6, s.r*5.6);
-
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(228,223,255,${Math.min(a, 0.88)})`;
-      ctx.fill();
-
+      // 少量十字星芒，讓亮星更有「星星」感。
+      ctx.save();
+      ctx.strokeStyle=`rgba(248,238,255,${a*0.38})`;
+      ctx.lineWidth=0.8;
+      ctx.beginPath();
+      ctx.moveTo(s.x-s.r*5.2,s.y); ctx.lineTo(s.x+s.r*5.2,s.y);
+      ctx.moveTo(s.x,s.y-s.r*5.2); ctx.lineTo(s.x,s.y+s.r*5.2);
+      ctx.stroke();
+      ctx.restore();
+    } else if(s.type==='mid'){
+      ctx.fillStyle=`rgba(232,226,255,${a})`; ctx.fill();
     } else {
-      // 細星：直接畫點，不加光暈，保持輕盈密集感
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-      ctx.fillStyle = `rgba(215,212,255,${Math.min(a, 0.75)})`;
-      ctx.fill();
+      ctx.fillStyle=`rgba(220,216,255,${a})`; ctx.fill();
     }
   });
 }
@@ -413,41 +367,31 @@ function drawGold(ctx, p, ts){
   const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeOutQuad,easeInOutQuart);
   const breathe=0.5+0.5*Math.sin(ts*0.0012);
 
+  ctx.fillStyle=`rgba(28,10,62,${Math.min(strength*0.97,0.97)})`;
+  ctx.fillRect(0,0,fxW,fxH);
+
   if(strength>0){
-    // ── 底色：蓋滿全螢幕 ──
-    const bg = Math.min(strength * 0.94, 0.94);
-    ctx.fillStyle = `rgba(28,10,62,${bg})`;
-    ctx.fillRect(0, 0, fxW, fxH);
-
-    // ── 金色光暈從底部三點滲入 ──
-    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([gx,gy],i)=>{
-      const a = strength * ((i===1?0.28:0.18) + (strength>0.7?breathe*0.06:0));
-      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*(fxH*1.3+i*30));
-      g.addColorStop(0,    `rgba(225,175,65,${a})`);
-      g.addColorStop(0.3,  `rgba(185,135,45,${a*0.5})`);
-      g.addColorStop(0.65, `rgba(110,80,20,${a*0.18})`);
-      g.addColorStop(1,    `rgba(28,10,62,0)`);
+    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([cx,cy],i)=>{
+      const a=strength*((i===1?0.28:0.18)+(strength>0.7?breathe*0.06:0));
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*(fxH*1.3+i*30));
+      g.addColorStop(0,   `rgba(225,175,65,${a})`);
+      g.addColorStop(0.3, `rgba(185,135,45,${a*0.5})`);
+      g.addColorStop(0.65,`rgba(110,80,20,${a*0.18})`);
+      g.addColorStop(1,   `rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
-
-    // 側邊極淡金邊
-    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([gx,gy])=>{
-      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*fxH*0.9);
-      g.addColorStop(0, `rgba(200,155,50,${strength*0.1})`);
-      g.addColorStop(1, `rgba(28,10,62,0)`);
+    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([cx,cy])=>{
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*fxH*0.9);
+      g.addColorStop(0,`rgba(200,155,50,${strength*0.1})`);
+      g.addColorStop(1,`rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
-
-    // 全畫面透明度呼吸（中央稍亮）
     if(strength>0.6){
-      const pulseA = (strength-0.6)/0.4 * breathe * 0.05;
-      const pulseG = ctx.createRadialGradient(fxW/2,fxH/2,0, fxW/2,fxH/2, Math.max(fxW,fxH)*0.6);
-      pulseG.addColorStop(0, `rgba(120,70,200,${pulseA})`);
-      pulseG.addColorStop(1, `rgba(120,70,200,0)`);
-      ctx.fillStyle=pulseG; ctx.fillRect(0,0,fxW,fxH);
+      ctx.fillStyle=`rgba(120,70,200,${(strength-0.6)/0.4*breathe*0.06})`;
+      ctx.fillRect(0,0,fxW,fxH);
     }
 
-    // 星星
+    // 星星放在金光與底色之上，避免被光暈吃掉。
     drawStarField(ctx,ts,strength*(0.96+0.32*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
@@ -491,12 +435,10 @@ function applyText(t1,t2,p){
   const enOpacity = isOut ? outAlpha : t2;
   const zhY = isOut ? -outMotion*96 : (1-t1)*16;
   const enY = isOut ? -outMotion*112 : (1-t2)*16;
-  const inBlurZh = t1 < 1 && !isOut ? (1-t1)*6 : 0;   // 進場：淡入時帶 blur，出現後消除
-  const inBlurEn = t2 < 1 && !isOut ? (1-t2)*6 : 0;
-  const outBlur  = isOut ? outMotion*3.5 : 0;
+  const blur = isOut ? outMotion*3.5 : 0;
 
-  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${Math.max(inBlurZh,outBlur)}px)`;
-  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${Math.max(inBlurEn,outBlur)}px)`;
+  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${blur}px)`;
+  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${blur}px)`;
 }
 
 /*
