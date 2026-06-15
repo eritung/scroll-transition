@@ -109,22 +109,19 @@
   }
 
   /*
-   * ③ P1：提前疊在序言下方
-   * 序言往上滑走時，P1 會直接從下方露出
+   * ③ P1：在序言退場時自然從下方接上
+   * outStart 前維持 hidden；開始退場後才顯示，所以不會有待命痕跡
    */
   .section-p1 {
     position: relative;
-    /*
-     * 讓 P1 提早兩個螢幕高度進場：
-     * outStart 一開始，P1 就已經在序言底下待命；序言滑走時會直接露出 P1。
-     */
-    margin-top: -200vh;
-    min-height: 300vh;
+    z-index: 5;              /* 在 hero 之上、preface 之下 */
+    margin-top: -100vh;      /* P1 的頂端在退場開始時剛好位於畫面下緣 */
+    min-height: 200vh;       /* P1 接上後多停留一段，不會立刻被捲走 */
     background: #3d1f72; /* ▼▼▼ 換成你的 P1 背景色 ▼▼▼ */
     color: rgba(240, 235, 255, 0.85);
     font-size: 18px;
     letter-spacing: 0.08em;
-    z-index: 5; /* 在 hero 上方、preface 下方，退場時會自然被揭開 */
+    visibility: hidden;
   }
 
   .p1-inner {
@@ -248,6 +245,8 @@ let fxW=0, fxH=0, starSeeds=[], ts0=0;
 const canvas   = document.getElementById('fx-canvas');
 const sceneEl  = document.getElementById('scene-wrap');
 const prefaceEl= document.getElementById('preface-panel');
+const p1El     = document.querySelector('.section-p1');
+const p1InnerEl= document.querySelector('.p1-inner');
 
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function ease(t){ return t<0.5?2*t*t:-1+(4-2*t)*t; }
@@ -441,6 +440,35 @@ function applyText(t1,t2,p){
   pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${blur}px)`;
 }
 
+
+function applyP1Motion(p, PH){
+  /*
+   * P1 不先待命在畫面底下，也不靠 clip-path 揭開。
+   * 它在 outStart 前是 hidden；outStart 後才顯示，
+   * 並利用 margin-top:-100vh 的自然滾動位置，從畫面下方接上序言退場。
+   */
+  if(!p1El) return;
+
+  const isOut = p >= PH.outStart;
+
+  if(!isOut){
+    p1El.style.visibility = 'hidden';
+    p1El.style.clipPath = 'none';
+    if(p1InnerEl){
+      p1InnerEl.style.opacity = 1;
+      p1InnerEl.style.transform = 'translateY(0)';
+    }
+    return;
+  }
+
+  p1El.style.visibility = 'visible';
+  p1El.style.clipPath = 'none';
+  if(p1InnerEl){
+    p1InnerEl.style.opacity = 1;
+    p1InnerEl.style.transform = 'translateY(0)';
+  }
+}
+
 /*
  * 滾動進度計算
  * scene-wrap 總高 600vh，但前 100vh 是主視覺（不算序言進度）
@@ -456,6 +484,7 @@ function getScrollProgress(){
 function renderFrame(ts){
   ts0=ts;
   const p=getScrollProgress(), ctx=canvas.getContext('2d');
+  applyP1Motion(p, CONFIG.phase);
   if(CONFIG.mode==='center') drawCenter(ctx,p,ts);
   else drawGold(ctx,p,ts);
   requestAnimationFrame(renderFrame);
