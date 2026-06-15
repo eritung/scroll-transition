@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>向光飛行 2026 知書答禮</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a0a40;
+    font-family: 'Noto Serif TC', 'Georgia', serif;
+    overflow-x: hidden;
+  }
+
+  /*
+   * 結構說明：
+   *
+   * .scene-wrap 是一個高度 = 主視覺 + 序言停留時間 的容器
+   * 裡面 hero 和 preface-panel 都是 sticky
+   * 兩者同時 sticky top:0，序言 z-index 比較高所以蓋在上面
+   *
+   * 滾出 .scene-wrap 後，兩個 sticky 都解除
+   * P1 正常接在下方，不蓋任何東西
+   */
+
+  /* 包住主視覺＋序言的容器，撐出總滾動距離 */
+  .scene-wrap {
+    position: relative;
+    /* 100vh = 主視覺，500vh = 序言停留距離，合計 600vh */
+    /* ▼▼▼ 調整序言停留時間：改 500vh 這個數字 ▼▼▼ */
+    height: 600vh;
+  }
+
+  /* ① 主視覺：sticky 在 scene-wrap 裡 */
+  .hero {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 1;
+    overflow: hidden;
+  }
+  /* ▼▼▼ 替換主視覺圖片 ▼▼▼ */
+  .hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+  }
+  /* ▲▲▲ */
+
+  /* ② 序言：也 sticky 在 scene-wrap 裡，蓋在 hero 上 */
+  .preface-panel {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 10;
+    overflow: hidden;
+    /* 往上疊回去蓋住 hero，因為 hero 已經佔了 100vh */
+    margin-top: -100vh;
+    transform: translateY(0);
+    will-change: transform;
+  }
+
+  #fx-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .preface-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 0 2rem;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .preface-zh {
+    font-size: clamp(15px, 2vw, 20px);
+    color: rgba(240, 235, 255, 0.93);
+    line-height: 2.4;
+    letter-spacing: 0.05em;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: none;
+    will-change: opacity, transform, filter;
+  }
+
+  .preface-en {
+    font-size: clamp(12px, 1.4vw, 16px);
+    color: rgba(210, 180, 120, 0.88);
+    font-style: italic;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transform: translateY(16px);
+    transition: none;
+    will-change: opacity, transform, filter;
+  }
+
+  /*
+   * ③ P1：正常 flow，在 scene-wrap 外面
+   * scene-wrap 滾完後自然出現，不蓋任何東西
+   */
+  .section-p1 {
+    position: relative;
+    /*
+     * 讓 P1 提早一個螢幕高度進場：
+     * 目前序言退場 outStart = 0.75，會在最後 100vh 開始看到 P1；outEnd = 1.00，退場會一路延續到 P1 接上
+     */
+    margin-top: -100vh;
+    min-height: 200vh;
+    background: #3d1f72; /* ▼▼▼ 換成你的 P1 背景色 ▼▼▼ */
+    color: rgba(240, 235, 255, 0.85);
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    z-index: 5; /* 在 hero 上方、preface 下方，退場時會自然被揭開 */
+  }
+
+  .p1-inner {
+    position: sticky;
+    top: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 開發用（上線刪除） */
+  .dev-switcher {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    gap: 8px;
+  }
+  .dev-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(40,15,80,0.85);
+    color: rgba(230,220,255,0.9);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .dev-btn.active {
+    background: rgba(130,80,230,0.7);
+    border-color: rgba(200,170,255,0.5);
+  }
+</style>
+</head>
+<body>
+
+<!--
+  scene-wrap 包住主視覺 + 序言
+  高度 = 主視覺(100vh) + 序言停留距離(500vh) = 600vh
+  P1 在外面，scene-wrap 滾完後正常接上
+-->
+<div class="scene-wrap" id="scene-wrap">
+
+  <!-- ① 主視覺 -->
+  <section class="hero">
+    <!-- ▼▼▼ 替換成你的主視覺圖片 ▼▼▼ -->
+    <img src="your-hero-image.jpg" alt="向光飛行 2026 知書答禮主視覺">
+    <!-- ▲▲▲ -->
+  </section>
+
+  <!-- ② 序言（蓋在主視覺上） -->
+  <div class="preface-panel" id="preface-panel">
+    <canvas id="fx-canvas"></canvas>
+    <div class="preface-text">
+      <!-- ▼▼▼ 序言文字 ▼▼▼ -->
+      <p class="preface-zh" id="pzh">
+        每個孩子心中，都藏著一片等待探索的星空。<br>
+        每份支持，都是陪夢想飛向未來的力量。<br>
+        一起撐起屬於孩子的每片天空，讓星夢勇敢啟航！
+      </p>
+      <p class="preface-en" id="pen">Stand by them. Let them soar!</p>
+      <!-- ▲▲▲ -->
+    </div>
+  </div>
+
+</div><!-- /scene-wrap -->
+
+<!-- ③ P1（scene-wrap 結束後正常接上，不蓋任何東西） -->
+<section class="section-p1">
+  <div class="p1-inner">
+    <!-- ▼▼▼ 換成你的 P1 內容 ▼▼▼ -->
+    <p>P1 內容區塊</p>
+    <!-- ▲▲▲ -->
+  </div>
+</section>
+
+<!-- 開發用（上線刪除） -->
+<div class="dev-switcher">
+  <button class="dev-btn active" id="btn-center" onclick="setMode('center')">中央光暈</button>
+  <button class="dev-btn"        id="btn-gold"   onclick="setMode('gold')">金光星空</button>
+</div>
+
+<script>
+/* =====================================================
+   ★ 設定區
+   ===================================================== */
+const CONFIG = {
+  mode: 'center',
+  // 'center' = 中央光暈爆開
+  // 'gold'   = 金光星空
+
+  phase: {
+    inStart:  0.05,  // 進場開始
+    inEnd:    0.25,  // 進場結束
+    // 停留：inEnd ~ outStart
+    outStart: 0.75,  // 退場開始
+    outEnd:   1.00,  // 退場結束（拉到 scene 結尾，消失速度會更慢）
+  },
+
+  center: {
+    textInStart: 0.16,
+    textInEnd:   0.30,
+  },
+
+  gold: {
+    textInStart:      0.22,
+    textInEnd:        0.38,
+    starFlickerSpeed: 0.0006,
+    starFlickerDepth: 0.45,
+  },
+};
+
+/* =====================================================
+   以下不需要改動
+   ===================================================== */
+let fxW=0, fxH=0, starSeeds=[], ts0=0;
+const canvas   = document.getElementById('fx-canvas');
+const sceneEl  = document.getElementById('scene-wrap');
+const prefaceEl= document.getElementById('preface-panel');
+
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function ease(t){ return t<0.5?2*t*t:-1+(4-2*t)*t; }
+function easeInOutQuart(t){ return t<0.5?8*t*t*t*t:1-8*(--t)*t*t*t; }
+function easeOutQuad(t){ return 1-(1-t)*(1-t); }
+function mapE(v,a,b,fn){ fn=fn||ease; return fn(clamp((v-a)/(b-a),0,1)); }
+
+function triPhase(p, inS, inE, outS, outE, inFn, outFn){
+  if(p <= inS)  return 0;
+  if(p <  inE)  return (inFn ||ease)(clamp((p-inS)/(inE-inS),  0,1));
+  if(p <= outS) return 1;
+  if(p <  outE) return 1-(outFn||ease)(clamp((p-outS)/(outE-outS),0,1));
+  return 0;
+}
+
+function initCanvas(){
+  fxW = canvas.offsetWidth;
+  fxH = canvas.offsetHeight;
+  canvas.width  = fxW;
+  canvas.height = fxH;
+  starSeeds = [];
+  for(let i=0;i<280;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.35+0.1,a:Math.random()*0.45+0.08,speed:Math.random()*1.4+0.4,phase:Math.random()*Math.PI*2,type:'tiny'});
+  for(let i=0;i<70;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.55+0.3,a:Math.random()*0.5+0.15, speed:Math.random()*0.9+0.2,phase:Math.random()*Math.PI*2,type:'mid'});
+  for(let i=0;i<20;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.7+0.5, a:Math.random()*0.55+0.3, speed:Math.random()*0.5+0.1,phase:Math.random()*Math.PI*2,type:'bright'});
+}
+
+function drawStarField(ctx, ts, globalAlpha, flickerSpeed, flickerDepth){
+  flickerSpeed=flickerSpeed||0.0008; flickerDepth=flickerDepth||0.35;
+  starSeeds.forEach(s=>{
+    const twinkle=(1-flickerDepth)+flickerDepth*(0.5+0.5*Math.sin(ts*flickerSpeed*s.speed+s.phase));
+    const a=s.a*twinkle*globalAlpha;
+    if(a<0.015) return;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    if(s.type==='bright'){
+      ctx.fillStyle=`rgba(235,228,255,${a})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*3.5,0,Math.PI*2);
+      ctx.fillStyle=`rgba(200,190,255,${a*0.1})`; ctx.fill();
+    } else {
+      ctx.fillStyle=`rgba(215,210,255,${a})`; ctx.fill();
+    }
+  });
+}
+
+function drawCenter(ctx, p, ts){
+  ctx.clearRect(0,0,fxW,fxH);
+  const PH=CONFIG.phase, C=CONFIG.center;
+  applyLayerMotion(p, PH);
+  const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeInOutQuart,easeInOutQuart);
+
+  ctx.fillStyle=`rgba(28,10,65,${Math.min(strength*0.97,0.97)})`;
+  ctx.fillRect(0,0,fxW,fxH);
+
+  if(strength>0){
+    const maxR=Math.sqrt(fxW*fxW+fxH*fxH)*0.72;
+    const isIn=p<PH.inEnd;
+    const explodeRaw=isIn?mapE(p,PH.inStart,PH.inEnd,easeInOutQuart):strength;
+    const bloomT=isIn?Math.min(explodeRaw/0.55,1.0):strength;
+    const a1=bloomT*0.42, a2=bloomT*0.32, a3=bloomT*0.28;
+    const r=explodeRaw*maxR;
+
+    const g1=ctx.createRadialGradient(fxW/2,fxH/2,0,fxW/2,fxH/2,Math.max(r,1));
+    g1.addColorStop(0,  `rgba(165,105,255,${a1})`);
+    g1.addColorStop(0.4,`rgba(105,50,205,${a1*0.42})`);
+    g1.addColorStop(0.8,`rgba(52,18,125,${a1*0.1})`);
+    g1.addColorStop(1,  `rgba(28,10,65,0)`);
+    ctx.fillStyle=g1; ctx.fillRect(0,0,fxW,fxH);
+
+    const g2=ctx.createRadialGradient(fxW/2,fxH/2,0,fxW/2,fxH/2,Math.max(r*0.45,1));
+    g2.addColorStop(0,  `rgba(210,170,255,${a2})`);
+    g2.addColorStop(0.5,`rgba(148,88,235,${a2*0.32})`);
+    g2.addColorStop(1,  `rgba(28,10,65,0)`);
+    ctx.fillStyle=g2; ctx.fillRect(0,0,fxW,fxH);
+
+    const g3=ctx.createRadialGradient(fxW/2,fxH/2,0,fxW/2,fxH/2,Math.max(r*0.18,1));
+    g3.addColorStop(0,  `rgba(238,222,255,${a3})`);
+    g3.addColorStop(0.6,`rgba(185,138,255,${a3*0.18})`);
+    g3.addColorStop(1,  `rgba(28,10,65,0)`);
+    ctx.fillStyle=g3; ctx.fillRect(0,0,fxW,fxH);
+  }
+
+  applyText(
+    triPhase(p,C.textInStart,C.textInEnd,PH.outStart,PH.outEnd),
+    triPhase(p,C.textInStart+0.06,C.textInEnd+0.06,PH.outStart+0.02,PH.outEnd),
+    p
+  );
+}
+
+function drawGold(ctx, p, ts){
+  ctx.clearRect(0,0,fxW,fxH);
+  const PH=CONFIG.phase, C=CONFIG.gold;
+  applyLayerMotion(p, PH);
+  const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeOutQuad,easeInOutQuart);
+  const breathe=0.5+0.5*Math.sin(ts*0.0012);
+
+  ctx.fillStyle=`rgba(28,10,62,${Math.min(strength*0.97,0.97)})`;
+  ctx.fillRect(0,0,fxW,fxH);
+
+  if(strength>0.04) drawStarField(ctx,ts,strength*(0.7+0.3*breathe),C.starFlickerSpeed,C.starFlickerDepth);
+
+  if(strength>0){
+    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([cx,cy],i)=>{
+      const a=strength*((i===1?0.28:0.18)+(strength>0.7?breathe*0.06:0));
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*(fxH*1.3+i*30));
+      g.addColorStop(0,   `rgba(225,175,65,${a})`);
+      g.addColorStop(0.3, `rgba(185,135,45,${a*0.5})`);
+      g.addColorStop(0.65,`rgba(110,80,20,${a*0.18})`);
+      g.addColorStop(1,   `rgba(28,10,62,0)`);
+      ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
+    });
+    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([cx,cy])=>{
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*fxH*0.9);
+      g.addColorStop(0,`rgba(200,155,50,${strength*0.1})`);
+      g.addColorStop(1,`rgba(28,10,62,0)`);
+      ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
+    });
+    if(strength>0.6){
+      ctx.fillStyle=`rgba(120,70,200,${(strength-0.6)/0.4*breathe*0.06})`;
+      ctx.fillRect(0,0,fxW,fxH);
+    }
+  }
+
+  applyText(
+    triPhase(p,C.textInStart,C.textInEnd,PH.outStart,PH.outEnd),
+    triPhase(p,C.textInStart+0.06,C.textInEnd+0.06,PH.outStart+0.02,PH.outEnd),
+    p
+  );
+}
+
+function applyLayerMotion(p, PH){
+  /*
+   * 退場時移動整個序言層，而不是只移動文字或 canvas：
+   * P1 從下方進場時，色塊、星空、光暈、文字會一起被往上滑走。
+   * 100vh = 完整滑出一個螢幕；想更戲劇化可調成 110～120。
+   */
+  const outMotion = mapE(p,PH.outStart,PH.outEnd,easeInOutQuart);
+  const isOut = p >= PH.outStart;
+  const layerY = isOut ? -outMotion * 100 : 0;
+  prefaceEl.style.transform = `translateY(${layerY}vh)`;
+}
+
+function applyText(t1,t2,p){
+  const pzh=document.getElementById('pzh'), pen=document.getElementById('pen');
+  const PH=CONFIG.phase;
+
+  /*
+   * 退場共用同一條進度：
+   * 色塊、中文、英文一起淡出；文字另外加大上移距離，
+   * 讓序言像被畫面往上帶走，而不是原地消失。
+   */
+  const outMotion = mapE(p,PH.outStart,PH.outEnd,easeInOutQuart);
+  const outAlpha  = 1 - outMotion;
+  const isOut = p >= PH.outStart;
+
+  /*
+   * 進場：保留中英文字的錯位淡入
+   * 退場：中英文字一起往上、一起淡出，英文稍微多上移一點，畫面更輕。
+   */
+  const zhOpacity = isOut ? outAlpha : t1;
+  const enOpacity = isOut ? outAlpha : t2;
+  const zhY = isOut ? -outMotion*96 : (1-t1)*16;
+  const enY = isOut ? -outMotion*112 : (1-t2)*16;
+  const blur = isOut ? outMotion*3.5 : 0;
+
+  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${blur}px)`;
+  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${blur}px)`;
+}
+
+/*
+ * 滾動進度計算
+ * scene-wrap 總高 600vh，但前 100vh 是主視覺（不算序言進度）
+ * 序言從第 100vh 開始，所以扣掉一個 windowHeight 後才是序言的滾動距離
+ */
+function getScrollProgress(){
+  const rect   = sceneEl.getBoundingClientRect();
+  const scrolled = -rect.top - window.innerHeight; // 扣掉主視覺的 100vh
+  const total    = sceneEl.offsetHeight - window.innerHeight * 2; // 總距離也扣掉主視覺
+  return clamp(scrolled / total, 0, 1);
+}
+
+function renderFrame(ts){
+  ts0=ts;
+  const p=getScrollProgress(), ctx=canvas.getContext('2d');
+  if(CONFIG.mode==='center') drawCenter(ctx,p,ts);
+  else drawGold(ctx,p,ts);
+  requestAnimationFrame(renderFrame);
+}
+
+function setMode(m){
+  CONFIG.mode=m;
+  document.getElementById('btn-center').classList.toggle('active',m==='center');
+  document.getElementById('btn-gold').classList.toggle('active',m==='gold');
+}
+
+window.addEventListener('resize',()=>{ initCanvas(); });
+initCanvas();
+requestAnimationFrame(renderFrame);
+</script>
+</body>
+</html>
