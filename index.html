@@ -269,44 +269,90 @@ function initCanvas(){
   canvas.height = fxH;
   starSeeds = [];
 
-  // 星星明顯版：提高數量、亮度與尺寸，但保留細緻星空感。
-  for(let i=0;i<360;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.45+0.16,a:Math.random()*0.55+0.18,speed:Math.random()*1.4+0.4,phase:Math.random()*Math.PI*2,type:'tiny'});
-  for(let i=0;i<110;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.75+0.42,a:Math.random()*0.6+0.28, speed:Math.random()*0.9+0.2,phase:Math.random()*Math.PI*2,type:'mid'});
-  for(let i=0;i<34;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*1.0+0.72, a:Math.random()*0.65+0.42, speed:Math.random()*0.5+0.1,phase:Math.random()*Math.PI*2,type:'bright'});
+  // 三層星空：數量多但半徑小，亮度有高有低，各自有獨立淡入 delay
+  for(let i=0;i<320;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.38+0.10,           // 極細，0.10~0.48px
+    a:Math.random()*0.38+0.10,           // 亮度偏低，讓整體不過亮
+    speed:Math.random()*1.6+0.3,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),                  // 各自隨機淡入時序
+    type:'tiny'
+  });
+  for(let i=0;i<90;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.55+0.32,           // 0.32~0.87px
+    a:Math.random()*0.45+0.22,
+    speed:Math.random()*1.0+0.2,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),
+    type:'mid'
+  });
+  for(let i=0;i<22;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.80+0.55,           // 0.55~1.35px，亮星就是要少
+    a:Math.random()*0.50+0.38,
+    speed:Math.random()*0.6+0.1,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),
+    type:'bright'
+  });
 }
 
 function drawStarField(ctx, ts, globalAlpha, flickerSpeed, flickerDepth){
-  flickerSpeed=flickerSpeed||0.0008; flickerDepth=flickerDepth||0.35;
+  flickerSpeed = flickerSpeed || 0.0008;
+  flickerDepth = flickerDepth || 0.35;
+
   starSeeds.forEach(s=>{
-    const twinkle=(1-flickerDepth)+flickerDepth*(0.5+0.5*Math.sin(ts*flickerSpeed*s.speed+s.phase));
-    const a=Math.min(s.a*twinkle*globalAlpha*1.45,0.95);
-    if(a<0.015) return;
+    // 各自 delay：globalAlpha 未達到 delay 門檻的星星還不出現
+    // 讓星星像慢慢被點亮，而不是整片同時亮起
+    const localAlpha = clamp((globalAlpha - s.delay * 0.35) / 0.65, 0, 1);
+    if(localAlpha < 0.01) return;
 
-    // 先畫柔光，星星會更容易從深色背景裡跳出來。
-    if(s.type!=='tiny'){
-      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*5.2,0,Math.PI*2);
-      ctx.fillStyle=`rgba(220,210,255,${a*0.12})`; ctx.fill();
-    }
+    // 閃爍：用正弦波模擬，每顆 phase 不同所以非同步
+    const twinkle = (1 - flickerDepth) + flickerDepth *
+                    (0.5 + 0.5 * Math.sin(ts * flickerSpeed * s.speed + s.phase));
 
-    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-    if(s.type==='bright'){
-      ctx.fillStyle=`rgba(250,244,255,${a})`; ctx.fill();
-      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*7.0,0,Math.PI*2);
-      ctx.fillStyle=`rgba(205,190,255,${a*0.13})`; ctx.fill();
+    const a = s.a * twinkle * localAlpha;
+    if(a < 0.012) return;
 
-      // 少量十字星芒，讓亮星更有「星星」感。
-      ctx.save();
-      ctx.strokeStyle=`rgba(248,238,255,${a*0.38})`;
-      ctx.lineWidth=0.8;
-      ctx.beginPath();
-      ctx.moveTo(s.x-s.r*5.2,s.y); ctx.lineTo(s.x+s.r*5.2,s.y);
-      ctx.moveTo(s.x,s.y-s.r*5.2); ctx.lineTo(s.x,s.y+s.r*5.2);
-      ctx.stroke();
-      ctx.restore();
-    } else if(s.type==='mid'){
-      ctx.fillStyle=`rgba(232,226,255,${a})`; ctx.fill();
+    if(s.type === 'bright'){
+      // 亮星：小核心 + 兩圈純 radial 柔光暈，不用 stroke
+      // 外圈極淡，看起來像真實星星的散射光
+      const halo1 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*4.5);
+      halo1.addColorStop(0, `rgba(230,222,255,${a*0.22})`);
+      halo1.addColorStop(1, `rgba(200,190,255,0)`);
+      ctx.fillStyle = halo1;
+      ctx.fillRect(s.x-s.r*4.5, s.y-s.r*4.5, s.r*9, s.r*9);
+
+      const halo2 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.2);
+      halo2.addColorStop(0, `rgba(245,240,255,${a*0.40})`);
+      halo2.addColorStop(1, `rgba(220,210,255,0)`);
+      ctx.fillStyle = halo2;
+      ctx.fillRect(s.x-s.r*2.2, s.y-s.r*2.2, s.r*4.4, s.r*4.4);
+
+      // 星點本體
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(252,248,255,${Math.min(a*1.1, 0.92)})`;
+      ctx.fill();
+
+    } else if(s.type === 'mid'){
+      // 中星：一層小柔光 + 本體
+      const halo = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.8);
+      halo.addColorStop(0, `rgba(220,215,255,${a*0.18})`);
+      halo.addColorStop(1, `rgba(210,205,255,0)`);
+      ctx.fillStyle = halo;
+      ctx.fillRect(s.x-s.r*2.8, s.y-s.r*2.8, s.r*5.6, s.r*5.6);
+
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(228,223,255,${Math.min(a, 0.88)})`;
+      ctx.fill();
+
     } else {
-      ctx.fillStyle=`rgba(220,216,255,${a})`; ctx.fill();
+      // 細星：直接畫點，不加光暈，保持輕盈密集感
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(215,212,255,${Math.min(a, 0.75)})`;
+      ctx.fill();
     }
   });
 }
@@ -366,31 +412,41 @@ function drawGold(ctx, p, ts){
   const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeOutQuad,easeInOutQuart);
   const breathe=0.5+0.5*Math.sin(ts*0.0012);
 
-  ctx.fillStyle=`rgba(28,10,62,${Math.min(strength*0.97,0.97)})`;
-  ctx.fillRect(0,0,fxW,fxH);
-
   if(strength>0){
-    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([cx,cy],i)=>{
-      const a=strength*((i===1?0.28:0.18)+(strength>0.7?breathe*0.06:0));
-      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*(fxH*1.3+i*30));
-      g.addColorStop(0,   `rgba(225,175,65,${a})`);
-      g.addColorStop(0.3, `rgba(185,135,45,${a*0.5})`);
-      g.addColorStop(0.65,`rgba(110,80,20,${a*0.18})`);
-      g.addColorStop(1,   `rgba(28,10,62,0)`);
+    // ── 底色：蓋滿全螢幕 ──
+    const bg = Math.min(strength * 0.94, 0.94);
+    ctx.fillStyle = `rgba(28,10,62,${bg})`;
+    ctx.fillRect(0, 0, fxW, fxH);
+
+    // ── 金色光暈從底部三點滲入 ──
+    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([gx,gy],i)=>{
+      const a = strength * ((i===1?0.28:0.18) + (strength>0.7?breathe*0.06:0));
+      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*(fxH*1.3+i*30));
+      g.addColorStop(0,    `rgba(225,175,65,${a})`);
+      g.addColorStop(0.3,  `rgba(185,135,45,${a*0.5})`);
+      g.addColorStop(0.65, `rgba(110,80,20,${a*0.18})`);
+      g.addColorStop(1,    `rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
-    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([cx,cy])=>{
-      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*fxH*0.9);
-      g.addColorStop(0,`rgba(200,155,50,${strength*0.1})`);
-      g.addColorStop(1,`rgba(28,10,62,0)`);
+
+    // 側邊極淡金邊
+    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([gx,gy])=>{
+      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*fxH*0.9);
+      g.addColorStop(0, `rgba(200,155,50,${strength*0.1})`);
+      g.addColorStop(1, `rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
+
+    // 全畫面透明度呼吸（中央稍亮）
     if(strength>0.6){
-      ctx.fillStyle=`rgba(120,70,200,${(strength-0.6)/0.4*breathe*0.06})`;
-      ctx.fillRect(0,0,fxW,fxH);
+      const pulseA = (strength-0.6)/0.4 * breathe * 0.05;
+      const pulseG = ctx.createRadialGradient(fxW/2,fxH/2,0, fxW/2,fxH/2, Math.max(fxW,fxH)*0.6);
+      pulseG.addColorStop(0, `rgba(120,70,200,${pulseA})`);
+      pulseG.addColorStop(1, `rgba(120,70,200,0)`);
+      ctx.fillStyle=pulseG; ctx.fillRect(0,0,fxW,fxH);
     }
 
-    // 星星放在金光與底色之上，避免被光暈吃掉。
+    // 星星
     drawStarField(ctx,ts,strength*(0.96+0.32*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
@@ -403,14 +459,13 @@ function drawGold(ctx, p, ts){
 
 function applyLayerMotion(p, PH){
   /*
-   * 退場時移動整個序言層，而不是只移動文字或 canvas：
-   * P1 從下方進場時，色塊、星空、光暈、文字會一起被往上滑走。
-   * 100vh = 完整滑出一個螢幕；想更戲劇化可調成 110～120。
+   * 序言退場：移動整個序言層，而不是只移動文字。
+   * P1 從下方接上時，色塊、星空、光暈、文字會整組往上滑走。
    */
   const outMotion = mapE(p,PH.outStart,PH.outEnd,easeInOutQuart);
   const isOut = p >= PH.outStart;
-  const layerY = isOut ? -outMotion * 100 : 0;
-  prefaceEl.style.transform = `translateY(${layerY}vh)`;
+  const layerY = isOut ? -outMotion * 112 : 0;
+  prefaceEl.style.transform = `translate3d(0, ${layerY}vh, 0)`;
 }
 
 function applyText(t1,t2,p){
@@ -418,26 +473,30 @@ function applyText(t1,t2,p){
   const PH=CONFIG.phase;
 
   /*
-   * 退場共用同一條進度：
-   * 色塊、中文、英文一起淡出；文字另外加大上移距離，
-   * 讓序言像被畫面往上帶走，而不是原地消失。
+   * 文字進退場都加入 blur：
+   * 進場時由模糊到清楚，退場時由清楚到模糊，同時往上被帶走。
    */
   const outMotion = mapE(p,PH.outStart,PH.outEnd,easeInOutQuart);
   const outAlpha  = 1 - outMotion;
   const isOut = p >= PH.outStart;
 
-  /*
-   * 進場：保留中英文字的錯位淡入
-   * 退場：中英文字一起往上、一起淡出，英文稍微多上移一點，畫面更輕。
-   */
   const zhOpacity = isOut ? outAlpha : t1;
   const enOpacity = isOut ? outAlpha : t2;
-  const zhY = isOut ? -outMotion*96 : (1-t1)*16;
-  const enY = isOut ? -outMotion*112 : (1-t2)*16;
-  const blur = isOut ? outMotion*3.5 : 0;
 
-  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${blur}px)`;
-  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${blur}px)`;
+  const zhY = isOut ? -outMotion*118 : (1-t1)*18;
+  const enY = isOut ? -outMotion*132 : (1-t2)*18;
+
+  const zhInBlur = !isOut ? (1-t1)*8 : 0;
+  const enInBlur = !isOut ? (1-t2)*8 : 0;
+  const outBlur  = isOut ? outMotion*10 : 0;
+
+  pzh.style.opacity=zhOpacity;
+  pzh.style.transform=`translate3d(0, ${zhY}px, 0)`;
+  pzh.style.filter=`blur(${Math.max(zhInBlur,outBlur)}px)`;
+
+  pen.style.opacity=enOpacity;
+  pen.style.transform=`translate3d(0, ${enY}px, 0)`;
+  pen.style.filter=`blur(${Math.max(enInBlur,outBlur)}px)`;
 }
 
 
