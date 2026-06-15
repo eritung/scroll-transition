@@ -227,8 +227,10 @@ const CONFIG = {
   },
 
   center: {
-    textInStart: 0.16,
-    textInEnd:   0.30,
+    textInStart:      0.16,
+    textInEnd:        0.30,
+    starFlickerSpeed: 0.00055,
+    starFlickerDepth: 0.38,
   },
 
   gold: {
@@ -294,6 +296,7 @@ function drawCenter(ctx, p, ts){
   const PH=CONFIG.phase, C=CONFIG.center;
   applyLayerMotion(p, PH);
   const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeInOutQuart,easeInOutQuart);
+  const breathe=0.5+0.5*Math.sin(ts*0.0012);
 
   ctx.fillStyle=`rgba(28,10,65,${Math.min(strength*0.97,0.97)})`;
   ctx.fillRect(0,0,fxW,fxH);
@@ -324,6 +327,9 @@ function drawCenter(ctx, p, ts){
     g3.addColorStop(0.6,`rgba(185,138,255,${a3*0.18})`);
     g3.addColorStop(1,  `rgba(28,10,65,0)`);
     ctx.fillStyle=g3; ctx.fillRect(0,0,fxW,fxH);
+
+    // 中央光暈模式也加入星星；放在光暈之上，避免被底色吃掉。
+    drawStarField(ctx,ts,strength*(0.45+0.25*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
   applyText(
