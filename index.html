@@ -413,31 +413,68 @@ function drawGold(ctx, p, ts){
   const strength=triPhase(p,PH.inStart,PH.inEnd,PH.outStart,PH.outEnd,easeOutQuad,easeInOutQuart);
   const breathe=0.5+0.5*Math.sin(ts*0.0012);
 
-  ctx.fillStyle=`rgba(28,10,62,${Math.min(strength*0.97,0.97)})`;
-  ctx.fillRect(0,0,fxW,fxH);
-
   if(strength>0){
-    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([cx,cy],i)=>{
-      const a=strength*((i===1?0.28:0.18)+(strength>0.7?breathe*0.06:0));
-      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*(fxH*1.3+i*30));
-      g.addColorStop(0,   `rgba(225,175,65,${a})`);
-      g.addColorStop(0.3, `rgba(185,135,45,${a*0.5})`);
-      g.addColorStop(0.65,`rgba(110,80,20,${a*0.18})`);
-      g.addColorStop(1,   `rgba(28,10,62,0)`);
+    // ── 底色：橢圓形雙層漸層，無任何硬邊 ──
+    // 用兩個橢圓 radial gradient 疊出「中央不透明、四邊自然消融」
+    // 橫向拉長 → 左右邊也柔化；縱向稍短 → 頂底消融更快
+    const bg = Math.min(strength * 0.94, 0.94);
+
+    // 層一：大橢圓，覆蓋中央主體
+    const ex1 = fxW * 0.50, ey1 = fxH * 0.42;   // 中心偏上一點
+    const rx1 = fxW * 0.52, ry1 = fxH * 0.48;   // 橢圓半徑
+    ctx.save();
+    ctx.scale(1, ry1/rx1);                         // 縮放 Y 軸讓 radial 變橢圓
+    const g_bg1 = ctx.createRadialGradient(ex1, ey1*(rx1/ry1), 0, ex1, ey1*(rx1/ry1), rx1);
+    g_bg1.addColorStop(0,    `rgba(28,10,62,${bg})`);
+    g_bg1.addColorStop(0.45, `rgba(28,10,62,${bg})`);
+    g_bg1.addColorStop(0.72, `rgba(28,10,62,${bg*0.55})`);
+    g_bg1.addColorStop(0.88, `rgba(28,10,62,${bg*0.18})`);
+    g_bg1.addColorStop(1,    `rgba(28,10,62,0)`);
+    ctx.fillStyle = g_bg1;
+    ctx.fillRect(0, 0, fxW, fxH*(rx1/ry1));
+    ctx.restore();
+
+    // 層二：稍小橢圓補中央，讓核心更實
+    ctx.save();
+    const rx2 = fxW * 0.35, ry2 = fxH * 0.32;
+    ctx.scale(1, ry2/rx2);
+    const g_bg2 = ctx.createRadialGradient(fxW/2, (fxH/2)*(rx2/ry2), 0, fxW/2, (fxH/2)*(rx2/ry2), rx2);
+    g_bg2.addColorStop(0,    `rgba(28,10,62,${bg})`);
+    g_bg2.addColorStop(0.6,  `rgba(28,10,62,${bg*0.4})`);
+    g_bg2.addColorStop(1,    `rgba(28,10,62,0)`);
+    ctx.fillStyle = g_bg2;
+    ctx.fillRect(0, 0, fxW, fxH*(rx2/ry2));
+    ctx.restore();
+
+    // ── 金色光暈從底部三點滲入 ──
+    [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([gx,gy],i)=>{
+      const a = strength * ((i===1?0.28:0.18) + (strength>0.7?breathe*0.06:0));
+      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*(fxH*1.3+i*30));
+      g.addColorStop(0,    `rgba(225,175,65,${a})`);
+      g.addColorStop(0.3,  `rgba(185,135,45,${a*0.5})`);
+      g.addColorStop(0.65, `rgba(110,80,20,${a*0.18})`);
+      g.addColorStop(1,    `rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
-    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([cx,cy])=>{
-      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,strength*fxH*0.9);
-      g.addColorStop(0,`rgba(200,155,50,${strength*0.1})`);
-      g.addColorStop(1,`rgba(28,10,62,0)`);
+
+    // 側邊極淡金邊
+    [[0,fxH*0.6],[fxW,fxH*0.6]].forEach(([gx,gy])=>{
+      const g = ctx.createRadialGradient(gx,gy,0, gx,gy, strength*fxH*0.9);
+      g.addColorStop(0, `rgba(200,155,50,${strength*0.1})`);
+      g.addColorStop(1, `rgba(28,10,62,0)`);
       ctx.fillStyle=g; ctx.fillRect(0,0,fxW,fxH);
     });
+
+    // 全畫面透明度呼吸（中央稍亮）
     if(strength>0.6){
-      ctx.fillStyle=`rgba(120,70,200,${(strength-0.6)/0.4*breathe*0.06})`;
-      ctx.fillRect(0,0,fxW,fxH);
+      const pulseA = (strength-0.6)/0.4 * breathe * 0.05;
+      const pulseG = ctx.createRadialGradient(fxW/2,fxH/2,0, fxW/2,fxH/2, Math.max(fxW,fxH)*0.6);
+      pulseG.addColorStop(0, `rgba(120,70,200,${pulseA})`);
+      pulseG.addColorStop(1, `rgba(120,70,200,0)`);
+      ctx.fillStyle=pulseG; ctx.fillRect(0,0,fxW,fxH);
     }
 
-    // 星星放在金光與底色之上，避免被光暈吃掉。
+    // 星星
     drawStarField(ctx,ts,strength*(0.96+0.32*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
@@ -481,10 +518,12 @@ function applyText(t1,t2,p){
   const enOpacity = isOut ? outAlpha : t2;
   const zhY = isOut ? -outMotion*96 : (1-t1)*16;
   const enY = isOut ? -outMotion*112 : (1-t2)*16;
-  const blur = isOut ? outMotion*3.5 : 0;
+  const inBlurZh = t1 < 1 && !isOut ? (1-t1)*6 : 0;   // 進場：淡入時帶 blur，出現後消除
+  const inBlurEn = t2 < 1 && !isOut ? (1-t2)*6 : 0;
+  const outBlur  = isOut ? outMotion*3.5 : 0;
 
-  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${blur}px)`;
-  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${blur}px)`;
+  pzh.style.opacity=zhOpacity; pzh.style.transform=`translateY(${zhY}px)`; pzh.style.filter=`blur(${Math.max(inBlurZh,outBlur)}px)`;
+  pen.style.opacity=enOpacity; pen.style.transform=`translateY(${enY}px)`; pen.style.filter=`blur(${Math.max(inBlurEn,outBlur)}px)`;
 }
 
 /*
