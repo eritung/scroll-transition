@@ -269,24 +269,91 @@ function initCanvas(){
   canvas.width  = fxW;
   canvas.height = fxH;
   starSeeds = [];
-  for(let i=0;i<280;i++) starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.35+0.1,a:Math.random()*0.45+0.08,speed:Math.random()*1.4+0.4,phase:Math.random()*Math.PI*2,type:'tiny'});
-  for(let i=0;i<70;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.55+0.3,a:Math.random()*0.5+0.15, speed:Math.random()*0.9+0.2,phase:Math.random()*Math.PI*2,type:'mid'});
-  for(let i=0;i<20;i++)  starSeeds.push({x:Math.random()*fxW,y:Math.random()*fxH,r:Math.random()*0.7+0.5, a:Math.random()*0.55+0.3, speed:Math.random()*0.5+0.1,phase:Math.random()*Math.PI*2,type:'bright'});
+
+  // 三層星空：數量多但半徑小，亮度有高有低，各自有獨立淡入 delay
+  for(let i=0;i<320;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.38+0.10,           // 極細，0.10~0.48px
+    a:Math.random()*0.38+0.10,           // 亮度偏低，讓整體不過亮
+    speed:Math.random()*1.6+0.3,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),                  // 各自隨機淡入時序
+    type:'tiny'
+  });
+  for(let i=0;i<90;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.55+0.32,           // 0.32~0.87px
+    a:Math.random()*0.45+0.22,
+    speed:Math.random()*1.0+0.2,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),
+    type:'mid'
+  });
+  for(let i=0;i<22;i++) starSeeds.push({
+    x:Math.random()*fxW, y:Math.random()*fxH,
+    r:Math.random()*0.80+0.55,           // 0.55~1.35px，亮星就是要少
+    a:Math.random()*0.50+0.38,
+    speed:Math.random()*0.6+0.1,
+    phase:Math.random()*Math.PI*2,
+    delay:Math.random(),
+    type:'bright'
+  });
 }
 
 function drawStarField(ctx, ts, globalAlpha, flickerSpeed, flickerDepth){
-  flickerSpeed=flickerSpeed||0.0008; flickerDepth=flickerDepth||0.35;
+  flickerSpeed = flickerSpeed || 0.0008;
+  flickerDepth = flickerDepth || 0.35;
+
   starSeeds.forEach(s=>{
-    const twinkle=(1-flickerDepth)+flickerDepth*(0.5+0.5*Math.sin(ts*flickerSpeed*s.speed+s.phase));
-    const a=s.a*twinkle*globalAlpha;
-    if(a<0.015) return;
-    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-    if(s.type==='bright'){
-      ctx.fillStyle=`rgba(235,228,255,${a})`; ctx.fill();
-      ctx.beginPath(); ctx.arc(s.x,s.y,s.r*3.5,0,Math.PI*2);
-      ctx.fillStyle=`rgba(200,190,255,${a*0.1})`; ctx.fill();
+    // 各自 delay：globalAlpha 未達到 delay 門檻的星星還不出現
+    // 讓星星像慢慢被點亮，而不是整片同時亮起
+    const localAlpha = clamp((globalAlpha - s.delay * 0.35) / 0.65, 0, 1);
+    if(localAlpha < 0.01) return;
+
+    // 閃爍：用正弦波模擬，每顆 phase 不同所以非同步
+    const twinkle = (1 - flickerDepth) + flickerDepth *
+                    (0.5 + 0.5 * Math.sin(ts * flickerSpeed * s.speed + s.phase));
+
+    const a = s.a * twinkle * localAlpha;
+    if(a < 0.012) return;
+
+    if(s.type === 'bright'){
+      // 亮星：小核心 + 兩圈純 radial 柔光暈，不用 stroke
+      // 外圈極淡，看起來像真實星星的散射光
+      const halo1 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*4.5);
+      halo1.addColorStop(0, `rgba(230,222,255,${a*0.22})`);
+      halo1.addColorStop(1, `rgba(200,190,255,0)`);
+      ctx.fillStyle = halo1;
+      ctx.fillRect(s.x-s.r*4.5, s.y-s.r*4.5, s.r*9, s.r*9);
+
+      const halo2 = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.2);
+      halo2.addColorStop(0, `rgba(245,240,255,${a*0.40})`);
+      halo2.addColorStop(1, `rgba(220,210,255,0)`);
+      ctx.fillStyle = halo2;
+      ctx.fillRect(s.x-s.r*2.2, s.y-s.r*2.2, s.r*4.4, s.r*4.4);
+
+      // 星點本體
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(252,248,255,${Math.min(a*1.1, 0.92)})`;
+      ctx.fill();
+
+    } else if(s.type === 'mid'){
+      // 中星：一層小柔光 + 本體
+      const halo = ctx.createRadialGradient(s.x,s.y,0, s.x,s.y, s.r*2.8);
+      halo.addColorStop(0, `rgba(220,215,255,${a*0.18})`);
+      halo.addColorStop(1, `rgba(210,205,255,0)`);
+      ctx.fillStyle = halo;
+      ctx.fillRect(s.x-s.r*2.8, s.y-s.r*2.8, s.r*5.6, s.r*5.6);
+
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(228,223,255,${Math.min(a, 0.88)})`;
+      ctx.fill();
+
     } else {
-      ctx.fillStyle=`rgba(215,210,255,${a})`; ctx.fill();
+      // 細星：直接畫點，不加光暈，保持輕盈密集感
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(215,212,255,${Math.min(a, 0.75)})`;
+      ctx.fill();
     }
   });
 }
@@ -329,7 +396,7 @@ function drawCenter(ctx, p, ts){
     ctx.fillStyle=g3; ctx.fillRect(0,0,fxW,fxH);
 
     // 中央光暈模式也加入星星；放在光暈之上，避免被底色吃掉。
-    drawStarField(ctx,ts,strength*(0.45+0.25*breathe),C.starFlickerSpeed,C.starFlickerDepth);
+    drawStarField(ctx,ts,strength*(0.82+0.28*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
   applyText(
@@ -348,8 +415,6 @@ function drawGold(ctx, p, ts){
 
   ctx.fillStyle=`rgba(28,10,62,${Math.min(strength*0.97,0.97)})`;
   ctx.fillRect(0,0,fxW,fxH);
-
-  if(strength>0.04) drawStarField(ctx,ts,strength*(0.7+0.3*breathe),C.starFlickerSpeed,C.starFlickerDepth);
 
   if(strength>0){
     [[fxW*0.05,fxH],[fxW*0.5,fxH],[fxW*0.95,fxH]].forEach(([cx,cy],i)=>{
@@ -371,6 +436,9 @@ function drawGold(ctx, p, ts){
       ctx.fillStyle=`rgba(120,70,200,${(strength-0.6)/0.4*breathe*0.06})`;
       ctx.fillRect(0,0,fxW,fxH);
     }
+
+    // 星星放在金光與底色之上，避免被光暈吃掉。
+    drawStarField(ctx,ts,strength*(0.96+0.32*breathe),C.starFlickerSpeed,C.starFlickerDepth);
   }
 
   applyText(
